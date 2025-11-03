@@ -1,0 +1,56 @@
+# Build outputs
+build/
+*.vcd
+*.fst
+*.log
+*.blif
+
+# Object files
+*.o
+*.a
+*.so
+
+# Compiled files
+*.pyc
+__pycache__/
+*.py~
+
+# Simulation outputs
+sim_build*/
+**/obj_dir/
+V*
+verilog/gl/
+
+# Synthesis outputs
+*.syn.v
+*.sdc
+*.spef
+
+# OpenLane generated files (large - exclude from git)
+openlane/*/runs/
+dependencies/
+signoff/
+
+# Generated GDS/DEF/LEF files (too large for git)
+*.gds
+*.def
+*.lef
+*.mag
+*.spi
+*.sdf
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keep OpenLane config files but exclude runs
+!openlane/*/config.json
+!openlane/*/interactive.tcl
+!openlane/*/pin_order.cfg
+

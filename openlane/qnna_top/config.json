@@ -1,0 +1,64 @@
+{
+    "DESIGN_NAME": "qnna_top",
+    "VERILOG_FILES": [
+        "dir::../../rtl/qnna_top.v",
+        "dir::../../rtl/qnna_wishbone.v",
+        "dir::../../rtl/qnna_csr.v",
+        "dir::../../rtl/qnna_mac_array.v"
+    ],
+    "MAX_TRANSITION_CONSTRAINT": 0.5,
+    "QUIT_ON_SYNTH_CHECKS": 0,
+    "QUIT_ON_MAGIC_DRC": 0,
+    "FP_PDN_CHECK_NODES": 0,
+    "SYNTH_ELABORATE_ONLY": 0,
+    "PL_RANDOM_GLB_PLACEMENT": 1,
+    "SYNTH_USE_PG_PINS_DEFINES": "",
+    "PL_RESIZER_DESIGN_OPTIMIZATIONS": 0,
+    "PL_RESIZER_TIMING_OPTIMIZATIONS": 0,
+    "GLB_RESIZER_TIMING_OPTIMIZATIONS": 0,
+    "GLB_RESIZER_DESIGN_OPTIMIZATIONS": 0,
+    "PL_RESIZER_BUFFER_INPUT_PORTS": 0,
+    "RUN_CTS": 0,
+    "FP_PDN_ENABLE_RAILS": 0,
+    "GRT_REPAIR_ANTENNAS": 0,
+    "RUN_HEURISTIC_DIODE_INSERTION": 0,
+    "RUN_FILL_INSERTION": 1,
+    "RUN_TAP_DECAP_INSERTION": 1,
+    "FP_PDN_VPITCH": 40,
+    "FP_PDN_HPITCH": 40,
+    "FP_PDN_VOFFSET": 18.43,
+    "FP_PDN_HOFFSET": 22.83,
+    "MAGIC_ZEROIZE_ORIGIN": 0,
+    "FP_SIZING": "absolute",
+    "RUN_CVC": 0,
+    "FP_PDN_CORE_RING": 1,
+    "FP_PDN_CORE_RING_VWIDTH": 3.1,
+    "FP_PDN_CORE_RING_HWIDTH": 3.1,
+    "FP_PDN_CORE_RING_VOFFSET": 6.0,
+    "FP_PDN_CORE_RING_HOFFSET": 6.0,
+    "FP_PDN_CORE_RING_VSPACING": 1.7,
+    "FP_PDN_CORE_RING_HSPACING": 1.7,
+    "FP_PDN_VWIDTH": 6.4,
+    "FP_PDN_HWIDTH": 6.4,
+    "FP_PDN_HSPACING": 3.2,
+    "FP_PDN_VSPACING": 3.2,
+    "VDD_NETS": [
+        "vdd"
+    ],
+    "GND_NETS": [
+        "vss"
+    ],
+    "FP_TEMPLATE_PINS": [
+        "vdd",
+        "vss"
+    ],
+    "DIE_AREA": "0 0 1000 1000",
+    "CORE_AREA": "10.07 11.2 990 990",
+    "RUN_IRDROP_REPORT": 0,
+    "RUN_LINTER": 0,
+    "RUN_LVS": 0,
+    "MAGIC_DEF_LABELS": 0,
+    "CLOCK_PORT": "wb_clk_i",
+    "CLOCK_PERIOD": 40.0
+}
+
