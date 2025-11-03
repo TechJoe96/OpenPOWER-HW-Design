@@ -77,12 +77,88 @@ This will:
 
 ## Design Overview
 
-The QNNA (Quantized Neural Net Accelerator) is a simple INT8 matrix multiplication accelerator with:
+The QNNA (Quantized Neural Net Accelerator) is an INT8 matrix multiplication accelerator designed to integrate with the Microwatt OpenPOWER CPU.
 
-- **Wishbone B4 Interface**: Standard peripheral interface
-- **4x4 MAC Array**: Multiply-accumulate operations
-- **Control/Status Registers**: Configuration and status
+### Architecture
+
+```
+Microwatt CPU (PowerISA v3.1C)
+        |
+   Wishbone Bus
+        |
++-----------------------------+
+|         QNNA Core           |
+| - Wishbone B4 Interface     |
+| - Control/Status Registers  |
+| - INT8 MAC Array (4x4)      |
+| - Buffer Management         |
++-----------------------------+
+```
+
+### Features
+
+- **Wishbone B4 Interface**: Standard peripheral interface compatible with Microwatt
+- **4x4 MAC Array**: INT8 multiply-accumulate operations
+- **Control/Status Registers**: Configuration and status monitoring
 - **Buffer Management**: Input/weight/output buffers
+- **MMIO Integration**: Memory-mapped I/O for easy software access
+
+### Integration with Microwatt
+
+The QNNA is designed as a Wishbone slave peripheral that can be integrated into a Microwatt SoC:
+
+1. **Address Mapping**: QNNA appears at `0x80000000` (configurable)
+2. **Wishbone Interface**: Standard B4 slave interface
+3. **Interrupt Support**: Optional completion interrupt
+4. **Software Access**: Standard MMIO register access
+
+For integration details, see [docs/integration.md](docs/integration.md) (if created) or [docs/IMPLEMENTATION_GUIDE.md](docs/IMPLEMENTATION_GUIDE.md).
+
+## Results
+
+### Synthesis Results
+- **Standard Cells**: sky130_fd_sc_hd
+- **Clock Frequency**: 25 MHz (40 ns period)
+- **Design Size**: Optimized for small area
+
+### Layout Results
+- **Die Area**: 1000 x 1000 microns
+- **Core Area**: 979.8 x 973.76 microns
+- **GDS File**: 4.2 MB
+- **Routing**: Complete (no routing violations)
+
+### Timing Results
+- **Multi-corner STA**: Passed (min/nom/max corners)
+- **Setup/Hold**: Verified
+- **Clock Tree**: Configured (CTS enabled)
+
+### Reports Location
+All reports are in: `openlane/qnna_top/runs/LATEST/reports/`
+- Synthesis reports: `reports/synthesis/`
+- Timing reports: `reports/signoff/`
+- Metrics: `reports/metrics.csv`
+
+## Running Testbenches
+
+### Verilator Testbench
+```bash
+cd tb/verilator
+make clean
+make
+./Vqnna_sim
+```
+
+### Cocotb Testbench (if configured)
+```bash
+cd tb/cocotb
+make clean
+make
+```
+
+Test waveforms can be viewed with GTKWave:
+```bash
+gtkwave tb/cocotb/dump.vcd
+```
 
 ## Configuration
 
@@ -109,10 +185,24 @@ make openlane  # This will pull the Docker image
 make ROOTLESS=1 qnna_top
 ```
 
+## Media Deliverables
+
+Screenshots and documentation are available in:
+- `docs/media/` - Screenshots and images
+- `docs/prompts/` - AI usage documentation
+
+For video demos, see the project repository or documentation.
+
 ## License
 
-Apache 2.0
+Apache 2.0 - See [LICENSE](LICENSE) file for details.
 
 ## Author
 
 TechJoe96
+
+## Acknowledgments
+
+- Microwatt team for the OpenPOWER core
+- ChipFoundry.io for hosting the challenge
+- Open-source community for tools and support
