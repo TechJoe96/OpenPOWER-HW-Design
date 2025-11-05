@@ -32,7 +32,7 @@ module qnna_mac_array (
         end else begin
             if (start && !running) begin
                 running <= 1'b1;
-                done <= 1'b0;
+                    done <= 1'b0;
                 row_counter <= 16'h0;
                 col_counter <= 16'h0;
                 k_counter <= 16'h0;
@@ -57,10 +57,10 @@ module qnna_mac_array (
                         if (row_counter >= dim_m - 1) begin
                             running <= 1'b0;
                             done <= 1'b1;
-                        end
                     end
                 end
-            end
+        end
+    end
         end
     end
 

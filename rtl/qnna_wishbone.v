@@ -27,7 +27,7 @@ module qnna_wishbone (
     output reg [15:0]               csr_dim_k,
     output wire                     csr_relu_en
 );
-
+    
     // Register offsets
     localparam CTRL_REG = 12'h000;
     localparam STATUS_REG = 12'h004;

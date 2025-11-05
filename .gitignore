@@ -28,8 +28,17 @@ verilog/gl/
 
 # OpenLane generated files (large - exclude from git)
 openlane/*/runs/
-dependencies/
+dependencies/openlane_src/
 signoff/
+
+# But include Microwatt (it's part of the repository)
+!dependencies/microwatt/
+
+# Exclude all markdown files except root README.md
+*.md
+!/README.md
+# But allow README.md in excluded directories
+!dependencies/microwatt/**/README.md
 
 # Generated GDS/DEF/LEF files (too large for git)
 *.gds

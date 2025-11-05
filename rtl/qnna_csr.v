@@ -21,7 +21,7 @@ module qnna_csr #(
     output reg                      mac_start,
     output wire                     irq_o
 );
-
+    
     // Status register bits
     assign csr_status = {23'h0, csr_done, csr_busy, 7'h0};
     assign csr_relu_en = csr_ctrl[0];
@@ -33,15 +33,15 @@ module qnna_csr #(
             csr_busy <= 1'b0;
             mac_start <= 1'b0;
         end else begin
-            mac_start <= 1'b0;
+                    mac_start <= 1'b0;
             
             if (csr_kick && !csr_busy) begin
-                csr_busy <= 1'b1;
-                csr_done <= 1'b0;
-                mac_start <= 1'b1;
+                            csr_busy <= 1'b1;
+                            csr_done <= 1'b0;
+                    mac_start <= 1'b1;
             end else if (mac_done && csr_busy) begin
                 csr_busy <= 1'b0;
-                csr_done <= 1'b1;
+                    csr_done <= 1'b1;
             end
         end
     end
