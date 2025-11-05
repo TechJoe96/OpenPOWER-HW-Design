@@ -380,34 +380,10 @@ See [`docs/SYNTHESIS_RESULTS.md`](docs/SYNTHESIS_RESULTS.md) for complete detail
 
 ### Complete Guides
 
-- [`docs/COMPLETE_EXPLANATION.md`](docs/COMPLETE_EXPLANATION.md) - Complete detailed guide (1000+ lines)
+- [`docs/IMPLEMENTATION_GUIDE.md`](docs/IMPLEMENTATION_GUIDE.md) - Complete detailed guide
   - Every module explained in depth
   - OpenLane flow step-by-step
-  - Design decisions and rationale
   
-- [`docs/LEARNING_GUIDE.md`](docs/LEARNING_GUIDE.md) - Step-by-step learning path
-  - Recommended reading order
-  - Study schedule (2 weeks)
-  - Hands-on exercises
-
-### Integration Guides
-
-- [`docs/MICROWATT_INTEGRATION.md`](docs/MICROWATT_INTEGRATION.md) - Microwatt integration guide
-- [`docs/OPENFRAME_INTEGRATION.md`](docs/OPENFRAME_INTEGRATION.md) - OpenFrame integration guide
-- [`docs/SOC_TESTBENCH.md`](docs/SOC_TESTBENCH.md) - SoC testbench documentation
-
-### Reference Guides
-
-- [`docs/SYNTHESIS_RESULTS.md`](docs/SYNTHESIS_RESULTS.md) - GDS file locations
-- [`docs/HOW_TO_RUN.md`](docs/HOW_TO_RUN.md) - How to run everything
-- [`docs/QUICK_REFERENCE.md`](docs/QUICK_REFERENCE.md) - One-page cheat sheet
-
-### Setup Guides
-
-- [`SETUP.md`](SETUP.md) - Detailed setup instructions
-- [`QUICK_FIX.md`](QUICK_FIX.md) - Troubleshooting PDK issues
-- [`SUBMISSION_CHECKLIST.md`](SUBMISSION_CHECKLIST.md) - Submission checklist
-
 ---
 
 ## 🛠️ Build System
@@ -583,15 +559,6 @@ TechJoe96
 - **OpenLane team** - Open-source ASIC flow
 - **SkyWater PDK** - Open-source PDK
 - **Open-source community** - Tools and support
-
----
-
-## 📞 Support
-
-For issues or questions:
-1. Check [`docs/`](docs/) for detailed guides
-2. See [`SETUP.md`](SETUP.md) for setup issues
-3. See [`QUICK_FIX.md`](QUICK_FIX.md) for common problems
 
 ---
 
