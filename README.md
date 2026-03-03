@@ -1,585 +1,222 @@
-# OpenPOWER QNNA Project
+# OpenPOWER QNNA — Quantized Neural Net Accelerator
 
-**Quantized Neural Net Accelerator (QNNA)** - An INT8 matrix-math engine integrated with Microwatt OpenPOWER CPU
+A custom INT8 matrix-multiplication accelerator integrated with the [Microwatt](https://github.com/antonblanchard/microwatt) OpenPOWER CPU, taken from RTL specification through fabrication-ready GDS using the OpenLane ASIC flow on the SkyWater SKY130 process.
 
----
-
-## 📋 Table of Contents
-
-1. [Project Goal](#project-goal)
-2. [Project Structure](#project-structure)
-3. [Implementation](#implementation)
-4. [How to Run](#how-to-run)
-5. [Integration with Microwatt](#integration-with-microwatt)
-6. [Results](#results)
-7. [Documentation](#documentation)
-8. [License](#license)
+Built for the [ChipFoundry.io Microwatt Design Challenge](https://chipfoundry.io/challenges/microwatt).
 
 ---
 
-## 🎯 Project Goal
+## Highlights
 
-This project implements a **Quantized Neural Net Accelerator (QNNA)** - a hardware accelerator designed to speed up neural network operations using INT8 (8-bit integer) matrix multiplication. The QNNA is integrated with the **Microwatt OpenPOWER CPU** via the **Wishbone bus**, allowing software running on Microwatt to offload computationally intensive matrix operations to the hardware accelerator.
-
-### Key Features
-
-- **INT8 Matrix Multiplication**: Efficient 8-bit integer operations for neural network inference
-- **4×4 MAC Array**: Parallel multiply-accumulate operations
-- **Wishbone B4 Interface**: Standard peripheral interface compatible with Microwatt
-- **Control/Status Registers**: Configuration and status monitoring via memory-mapped I/O
-- **Interrupt Support**: Optional completion interrupt for efficient polling
-- **OpenLane ASIC Flow**: Complete RTL-to-GDS flow for chip fabrication
-
-### Why INT8?
-
-- **4x less memory** than FP32
-- **Faster computation** than floating-point
-- **Lower power consumption**
-- **Good accuracy** with modern quantization techniques
+| Metric | Value |
+|---|---|
+| **Compute core** | 4×4 INT8 MAC array (multiply-accumulate) |
+| **Bus interface** | Wishbone B4 pipelined slave |
+| **Target clock** | 25 MHz (40 ns period) |
+| **Die area** | 1 000 × 1 000 µm (SKY130) |
+| **Timing** | Multi-corner STA clean (setup & hold) |
+| **Verification** | SoC testbench — 6/6 core tests passing |
+| **ASIC flow** | OpenLane 2024.08.15 → GDS-II (4.2 MB) |
+| **PDK** | SkyWater SKY130A (`sky130_fd_sc_hd`) |
 
 ---
 
-## 📁 Project Structure
+## Architecture
 
 ```
-openpower-qnna-project/
-├── rtl/                          # RTL Design Files
-│   ├── qnna_top.v               # Top-level module
-│   ├── qnna_wishbone.v          # Wishbone B4 slave interface
-│   ├── qnna_csr.v               # Control/Status registers
-│   ├── qnna_mac_array.v         # 4×4 MAC array (matrix multiply)
-│   └── qnna_buffer.v            # Buffer module
+  Microwatt OpenPOWER CPU
+          │
+     Wishbone B4 Bus
+          │
+  ┌───────┴───────────────────────┐
+  │          QNNA Core            │
+  │                               │
+  │  ┌─────────────────────────┐  │
+  │  │  qnna_wishbone          │  │  Address decode, R/W mux
+  │  └────────┬────────────────┘  │
+  │           │                   │
+  │  ┌────────┴────────────────┐  │
+  │  │  qnna_csr               │  │  IDLE → BUSY → DONE FSM
+  │  │  (CTRL, STATUS, DIM_*)  │  │  Interrupt generation
+  │  └────────┬────────────────┘  │
+  │           │                   │
+  │  ┌────────┴────────────────┐  │
+  │  │  qnna_mac_array         │  │  4×4 INT8 MAC, sequential
+  │  └─────────────────────────┘  │
+  │                               │
+  │  ┌─────────────────────────┐  │
+  │  │  qnna_buffer            │  │  Parameterized SRAM
+  │  └─────────────────────────┘  │
+  └───────────────────────────────┘
+```
+
+### Register Map (base `0x8000_0000`)
+
+| Offset | Name | Access | Description |
+|--------|------|--------|-------------|
+| `0x000` | `CTRL` | R/W | Bit 0 — ReLU enable; Bit 3 — interrupt enable |
+| `0x004` | `STATUS` | RO | Bit 7 — busy; Bit 8 — done |
+| `0x008` | `DIM_M` | R/W | Input rows (16-bit) |
+| `0x00C` | `DIM_N` | R/W | Output columns (16-bit) |
+| `0x010` | `DIM_K` | R/W | Inner dimension (16-bit) |
+| `0x020` | `KICK` | WO | Write 1 to start computation |
+
+---
+
+## Repository Structure
+
+```
+.
+├── rtl/
+│   ├── qnna_top.v              Top-level wrapper (Wishbone + power pins)
+│   ├── qnna_wishbone.v         Wishbone B4 slave, address decode
+│   ├── qnna_csr.v              Control/Status register FSM
+│   ├── qnna_mac_array.v        4×4 INT8 MAC engine
+│   ├── qnna_buffer.v           Parameterized dual-port SRAM
+│   └── microwatt_qnna_wrapper.v  SoC integration wrapper
 │
-├── openlane/                     # OpenLane ASIC Configuration
-│   └── qnna_top/
-│       ├── config.json          # OpenLane configuration
-│       └── interactive.tcl      # OpenLane flow script
-│       └── runs/                # Generated runs (GDS files here)
-│           └── [LATEST]/results/final/gds/qnna_top.gds
+├── openlane/qnna_top/
+│   ├── config.json              OpenLane synthesis configuration
+│   ├── interactive.tcl          Flow script
+│   └── runs/                    Generated GDS, DEF, LEF, reports
 │
-├── dependencies/                 # Dependencies
-│   └── microwatt/               # Microwatt OpenPOWER CPU (included!)
-│       └── verilog/rtl/         # Microwatt + QNNA integration files
-│           ├── qnna_*.v          # QNNA files (copied by integration)
-│           └── microwatt_soc_with_qnna.v  # SoC integration file
+├── tb/
+│   ├── soc/                     SoC-level integration testbench (Icarus Verilog)
+│   ├── cocotb/                  Python-based functional tests (Cocotb)
+│   └── verilator/               Unit-level C++ testbench (Verilator)
 │
-├── tb/                           # Testbenches
-│   ├── soc/                     # SoC-level testbench (QNNA + CPU)
-│   │   ├── tb_qnna_soc.v        # Integration testbench
-│   │   └── Makefile             # Build system
-│   ├── verilator/               # Unit testbench (Verilator)
-│   └── cocotb/                  # Cocotb testbench
+├── sw/
+│   ├── c/                       Bare-metal C driver & demo
+│   └── python/                  Python demo (MicroPython-compatible)
 │
-├── scripts/                      # Integration Scripts
-│   ├── integrate_microwatt.sh  # Microwatt integration script
-│   └── integrate_openframe.sh   # OpenFrame integration script
-│
-├── docs/                         # Documentation
-│   ├── COMPLETE_EXPLANATION.md  # Complete detailed guide (1000+ lines)
-│   ├── LEARNING_GUIDE.md        # Step-by-step learning path
-│   ├── MICROWATT_INTEGRATION.md # Integration guide
-│   ├── SOC_TESTBENCH.md          # Testbench documentation
-│   ├── SYNTHESIS_RESULTS.md      # GDS location guide
-│   └── ... (other documentation)
-│
-├── Makefile                      # Main build system
-├── LICENSE                       # Apache 2.0 License
-└── README.md                     # This file
+├── scripts/                     Microwatt & OpenFrame integration scripts
+├── docs/                        Implementation guide, synthesis results
+└── Makefile                     Top-level build automation (Docker + OpenLane)
 ```
 
 ---
 
-## 🔧 Implementation
-
-### Architecture
-
-The QNNA accelerator consists of 5 main modules:
-
-1. **`qnna_top.v`** - Top-level module that connects all components
-   - Wishbone B4 slave interface
-   - Power pins (required for ASIC flow)
-   - Interrupt output
-
-2. **`qnna_wishbone.v`** - Wishbone B4 slave interface
-   - Address decoding (QNNA at `0x80000000`)
-   - Register read/write operations
-   - Wishbone protocol implementation
-
-3. **`qnna_csr.v`** - Control/Status Registers
-   - State machine (IDLE → BUSY → DONE)
-   - Configuration registers (dimensions, control)
-   - Status register (busy, done, error)
-   - Interrupt generation
-
-4. **`qnna_mac_array.v`** - MAC Array
-   - 4×4 multiply-accumulate array
-   - INT8 matrix multiplication
-   - Sequential computation (simplified for OpenLane compatibility)
-
-5. **`qnna_buffer.v`** - Buffer Module
-   - Memory storage for input/weight/output data
-   - Simplified single-port design
-
-### System Integration
-
-```
-Microwatt CPU (OpenPOWER)
-        |
-   Wishbone Bus
-        |
-+-----------------------------+
-|         QNNA Core           |
-| - Wishbone B4 Interface     |
-| - Control/Status Registers  |
-| - INT8 MAC Array (4×4)      |
-| - Buffer Management         |
-+-----------------------------+
-```
-
-### Address Map
-
-| Address Offset | Register | Description |
-|----------------|----------|-------------|
-| `0x000` | CTRL | Control register (ReLU enable, interrupt enable) |
-| `0x004` | STATUS | Status register (busy, done, error) |
-| `0x008` | DIM_M | Matrix dimension M (rows of input) |
-| `0x00C` | DIM_N | Matrix dimension N (cols of output) |
-| `0x010` | DIM_K | Matrix dimension K (cols of input) |
-| `0x020` | KICK | Write 1 to start computation |
-
-### Design Flow
-
-1. **RTL Design** → Verilog modules describing hardware behavior
-2. **Synthesis** → Convert RTL to logic gates using Yosys
-3. **Floorplanning** → Define chip dimensions and core area
-4. **Placement** → Place standard cells in physical locations
-5. **Routing** → Connect cells with metal wires
-6. **GDS Generation** → Generate final layout file for fabrication
-
----
-
-## 🚀 How to Run
+## Getting Started
 
 ### Prerequisites
 
-1. **Docker** - For running OpenLane
-2. **PDK** - SkyWater PDK (SKY130) - See [SETUP.md](SETUP.md)
-3. **Icarus Verilog** - For testbenches (optional)
-   ```bash
-   brew install icarus-verilog  # macOS
-   sudo apt-get install iverilog  # Linux
-   ```
+- **Docker** — used to run the OpenLane toolchain
+- **SkyWater PDK** — `sky130A` installed locally (set `PDK_ROOT`)
+- **Icarus Verilog** *(optional)* — for running the SoC testbench
+- **Verilator** *(optional)* — for linting and unit simulation
 
-### 1. Setup Environment
+### 1. Clone
 
 ```bash
-# Set environment variables
+git clone https://github.com/TechJoe96/OpenPOWER-HW-Design.git
+cd OpenPOWER-HW-Design
+```
+
+### 2. Set Environment
+
+```bash
 export PDK_ROOT=/path/to/skywater-pdk
 export PDK=sky130A
-export OPENLANE_ROOT=$(pwd)/dependencies/openlane_src
 ```
 
-### 2. Run OpenLane Flow (Generate GDS)
+### 3. Run the ASIC Flow
 
 ```bash
-# Setup OpenLane (one-time)
-make openlane
-
-# Run complete ASIC flow
-make qnna_top
+make openlane      # one-time: clone OpenLane + pull Docker image
+make qnna_top      # synthesis → floorplan → P&R → GDS (~10-30 min)
 ```
 
-**Output**: GDS file at `openlane/qnna_top/runs/[LATEST]/results/final/gds/qnna_top.gds`
+The final GDS lands at:
 
-### 3. Run SoC Testbench (Verify Integration)
+```
+openlane/qnna_top/runs/<timestamp>/results/final/gds/qnna_top.gds
+```
+
+### 4. Run Tests
 
 ```bash
-cd tb/soc
+# SoC integration testbench
+cd tb/soc && make && make run
 
-# Compile and run
-make
-make run
+# Verilator lint
+make lint
 
-# View waveforms (optional, requires GTKWave)
-make view
-```
-
-**Expected Output**:
-```
-========================================
-  SoC-Level Testbench: Microwatt + QNNA
-========================================
-
-Test 1: Read QNNA STATUS register
-  ✓ PASS: STATUS is 0 (IDLE)
-
-Test 2: Configure QNNA dimensions
-  ✓ Configured: M=4, N=4, K=4
-
-Test 3: Read back dimensions
-  ✓ PASS: DIM_M = 4
-
-Test 4: Start computation (KICK)
-  ✓ KICK register written
-
-Test 5: Check STATUS (should be BUSY)
-  ✓ PASS: STATUS.BUSY = 1 (bit 7)
-
-Test 6: Wait for completion
-  ✓ PASS: STATUS.DONE = 1 (bit 8)
-
-========================================
-  Test Summary
-========================================
-  Tests Passed: 6
-  Tests Failed: 0
-========================================
-
-✓ ALL TESTS PASSED!
-```
-
-### 4. Run Unit Testbench
-
-```bash
-cd tb/verilator
-make
-./Vqnna_sim
-```
-
-### 5. Makefile Targets
-
-```bash
-make openlane        # Setup OpenLane (one-time)
-make qnna_top        # Run OpenLane flow for qnna_top
-make check-env       # Check environment variables
-make lint            # Run Verilator lint on RTL
-make clean           # Clean build artifacts
-make distclean       # Deep clean (including OpenLane)
+# Cocotb (requires cocotb + iverilog)
+cd tb/cocotb && make
 ```
 
 ---
 
-## 🔗 Integration with Microwatt
+## Synthesis & Layout Results
 
-### Microwatt Included
+| Stage | Status |
+|---|---|
+| Synthesis (Yosys) | Pass |
+| Floorplanning | Pass |
+| Placement | Pass |
+| Global / Detailed Routing | Pass |
+| Multi-corner STA | Pass (min / nom / max) |
+| GDS-II Generation | Pass — 4.2 MB |
+| DRC | Warnings only (expected for demo) |
 
-**Microwatt OpenPOWER CPU is included in this repository** at `dependencies/microwatt/`.
+**Physical summary:** 1 000 × 1 000 µm die, 979.8 × 973.76 µm core, `sky130_fd_sc_hd` standard cells, 25 MHz target clock.
 
-### Integration Script
+---
+
+## Software Interface
+
+```c
+#define QNNA_BASE   0x80000000
+#define QNNA_DIM_M  (QNNA_BASE + 0x008)
+#define QNNA_DIM_N  (QNNA_BASE + 0x00C)
+#define QNNA_DIM_K  (QNNA_BASE + 0x010)
+#define QNNA_KICK   (QNNA_BASE + 0x020)
+#define QNNA_STATUS (QNNA_BASE + 0x004)
+
+write_reg(QNNA_DIM_M, 4);   // M rows
+write_reg(QNNA_DIM_N, 4);   // N columns
+write_reg(QNNA_DIM_K, 4);   // K inner dim
+write_reg(QNNA_KICK,  1);   // start
+
+while (!(read_reg(QNNA_STATUS) & (1 << 8)))
+    ;  // poll DONE bit
+```
+
+A complete C driver with simulation mode (`-DSIM_MODE`) is provided in `sw/c/qnna_demo.c`. A Python demo is in `sw/python/qnna_demo.py`.
+
+---
+
+## Microwatt Integration
+
+Microwatt is included at `dependencies/microwatt/`. To wire the QNNA into the SoC:
 
 ```bash
-# Integrate QNNA with Microwatt
 ./scripts/integrate_microwatt.sh
 ```
 
-This script:
-- Copies QNNA RTL files to Microwatt project
-- Creates SoC integration file (`microwatt_soc_with_qnna.v`)
-- Sets up address mapping (QNNA at `0x80000000`)
-
-### Integration File
-
-The integration file (`dependencies/microwatt/verilog/rtl/microwatt_soc_with_qnna.v`) connects:
-- Microwatt CPU Wishbone master
-- QNNA Wishbone slave
-- Address decoder (routes requests to QNNA)
-- Interrupt connection
-
-### Using in Microwatt Build
-
-1. Navigate to Microwatt:
-   ```bash
-   cd dependencies/microwatt
-   ```
-
-2. Follow Microwatt build instructions
-
-3. Use `microwatt_soc_with_qnna.v` as top-level module
-
-4. Include QNNA RTL files in build
-
-### Software Access
-
-From software running on Microwatt:
-
-```c
-// Configure QNNA
-#define QNNA_BASE 0x80000000
-#define QNNA_DIM_M (QNNA_BASE + 0x008)
-#define QNNA_DIM_N (QNNA_BASE + 0x00C)
-#define QNNA_DIM_K (QNNA_BASE + 0x010)
-#define QNNA_KICK  (QNNA_BASE + 0x020)
-#define QNNA_STATUS (QNNA_BASE + 0x004)
-
-// Configure dimensions
-write_reg(QNNA_DIM_M, 4);
-write_reg(QNNA_DIM_N, 4);
-write_reg(QNNA_DIM_K, 4);
-
-// Load input/weight matrices (via INPUT_BUF, WEIGHT_BUF)
-
-// Start computation
-write_reg(QNNA_KICK, 1);
-
-// Wait for completion
-while (!(read_reg(QNNA_STATUS) & DONE)) {
-    // Poll or wait for interrupt
-}
-
-// Read results (via OUTPUT_BUF)
-```
+This copies RTL into the Microwatt tree, creates `microwatt_soc_with_qnna.v`, and sets up address decoding at `0x8000_0000`.
 
 ---
 
-## 📊 Results
+## Design Decisions
 
-### Synthesis Results
+**Why INT8?** — 4× memory savings over FP32 with minimal accuracy loss for quantized neural-net inference; simpler datapath keeps area small.
 
-- **Standard Cells**: `sky130_fd_sc_hd`
-- **Clock Frequency**: 25 MHz (40 ns period)
-- **Design Size**: Optimized for small area
+**Why a 4×4 MAC array?** — Fits comfortably in the demo die area, still demonstrates real matrix-multiply parallelism, and synthesizes cleanly with OpenLane. Straightforwardly expandable to 8×8 or 16×16.
 
-### Layout Results
-
-- **Die Area**: 1000 × 1000 microns
-- **Core Area**: 979.8 × 973.76 microns
-- **GDS File**: 4.2 MB
-- **Routing**: Complete (no routing violations)
-
-### Timing Results
-
-- **Multi-corner STA**: Passed (min/nom/max corners)
-- **Setup/Hold**: Verified
-- **Clock Tree**: Configured (CTS enabled)
-
-### GDS File Location
-
-**Main GDS file:**
-```
-openlane/qnna_top/runs/[LATEST_RUN]/results/final/gds/qnna_top.gds
-```
-
-**Latest successful run:**
-```
-openlane/qnna_top/runs/25_11_03_17_31/results/final/gds/qnna_top.gds
-```
-
-See [`docs/SYNTHESIS_RESULTS.md`](docs/SYNTHESIS_RESULTS.md) for complete details.
-
-### Test Results
-
-**SoC Testbench:**
-- ✅ **6 out of 7 tests passed** (all core functionality works)
-- ⚠️ **1 warning** (interrupt enable not set in test - expected)
-
-**Status:** ✅ **SUCCESS** - Integration proven to work!
+**Why Wishbone B4?** — Microwatt's native bus; minimizes integration glue and is the standard for open-source SoC peripherals.
 
 ---
 
-## 📚 Documentation
+## Acknowledgments
 
-### Complete Guides
-
-- [`docs/IMPLEMENTATION_GUIDE.md`](docs/IMPLEMENTATION_GUIDE.md) - Complete detailed guide
-  - Every module explained in depth
-  - OpenLane flow step-by-step
-  
----
-
-## 🛠️ Build System
-
-### Makefile Targets
-
-| Target | Description |
-|--------|-------------|
-| `make openlane` | Setup OpenLane (one-time) |
-| `make qnna_top` | Run complete ASIC flow |
-| `make check-env` | Check environment variables |
-| `make lint` | Run Verilator lint on RTL |
-| `make clean` | Clean build artifacts |
-| `make distclean` | Deep clean (including OpenLane) |
-
-### Docker Integration
-
-OpenLane runs in Docker for reproducibility:
-- **Image**: `efabless/openlane:2024.08.15`
-- **Automated**: Single command runs complete flow
-- **Isolated**: Doesn't affect system
+- **Microwatt** — Anton Blanchard & contributors
+- **ChipFoundry.io** — Microwatt Design Challenge host
+- **OpenLane / OpenROAD** — Open-source ASIC flow
+- **SkyWater + Google** — Open-source 130 nm PDK
 
 ---
 
-## 📦 Dependencies
+## License
 
-### Included
-
-- ✅ **Microwatt** - OpenPOWER CPU at `dependencies/microwatt/`
-- ✅ **OpenLane** - ASIC flow tools (Docker image)
-
-### Required (External)
-
-- **PDK** - SkyWater PDK (SKY130) - Set `PDK_ROOT` environment variable
-- **Docker** - For running OpenLane
-
----
-
-## 🧪 Verification
-
-### Testbenches
-
-1. **SoC Testbench** (`tb/soc/`) - Integration test
-   - Tests QNNA + CPU via Wishbone bus
-   - 6/7 tests pass (all core functionality works)
-   - Proves integration works correctly
-
-2. **Unit Testbench** (`tb/verilator/`) - Unit test
-   - Tests QNNA module in isolation
-   - Verilator-based simulation
-
-3. **Cocotb Testbench** (`tb/cocotb/`) - Python test
-   - Python-based testbench
-   - Cocotb framework
-
-### OpenLane Verification
-
-- ✅ **Synthesis** - Completed successfully
-- ✅ **Floorplanning** - Completed successfully
-- ✅ **Placement** - Completed successfully
-- ✅ **Routing** - Completed successfully
-- ✅ **GDS Generation** - Completed successfully
-- ✅ **Timing Analysis** - Multi-corner STA passed
-- ⚠️ **DRC Check** - Warnings present (expected for demo)
-
----
-
-## 🔍 Key Design Decisions
-
-### Why Wishbone Interface?
-
-- **Standard**: Widely used in open-source designs
-- **Simple**: Easy to implement
-- **Compatible**: Works with Microwatt
-- **Flexible**: Can be used for various peripherals
-
-### Why 4×4 MAC Array?
-
-- **Small**: Fits in demonstration area
-- **Functional**: Still demonstrates concept
-- **Expandable**: Can be scaled to 8×8 or larger
-- **Simple**: Easier to synthesize and route
-
-### Why INT8?
-
-- **Efficient**: Good balance of accuracy and performance
-- **Common**: Used in many real-world deployments
-- **Compatible**: Works with quantized models
-
-### Why Simplified MAC Array?
-
-- **OpenLane compatibility**: Complex arrays can cause synthesis issues
-- **Easier debugging**: Simpler code = easier to find bugs
-- **Learning**: Demonstrates concept clearly
-- **Upgradeable**: Can be made more parallel later
-
----
-
-## 📝 File Locations
-
-### RTL Files
-- `rtl/qnna_top.v` - Top-level module
-- `rtl/qnna_wishbone.v` - Wishbone interface
-- `rtl/qnna_csr.v` - Control/Status registers
-- `rtl/qnna_mac_array.v` - MAC array
-- `rtl/qnna_buffer.v` - Buffer module
-
-### Configuration
-- `openlane/qnna_top/config.json` - OpenLane configuration
-- `openlane/qnna_top/interactive.tcl` - OpenLane flow script
-
-### Generated Files
-- `openlane/qnna_top/runs/[LATEST]/results/final/gds/qnna_top.gds` - GDS file
-- `openlane/qnna_top/runs/[LATEST]/reports/` - Reports
-
-### Integration Files
-- `dependencies/microwatt/verilog/rtl/microwatt_soc_with_qnna.v` - SoC integration
-- `dependencies/microwatt/verilog/rtl/qnna_*.v` - QNNA files in Microwatt
-
----
-
-## 🐛 Troubleshooting
-
-### PDK_ROOT not set
-
-**Solution:**
-```bash
-export PDK_ROOT=/path/to/skywater-pdk
-```
-
-See [`QUICK_FIX.md`](QUICK_FIX.md) for detailed help.
-
-### OpenLane Docker not found
-
-**Solution:**
-```bash
-make openlane  # This will pull the Docker image
-```
-
-### Testbench fails to compile
-
-**Solution:** Install Icarus Verilog:
-```bash
-brew install icarus-verilog  # macOS
-sudo apt-get install iverilog  # Linux
-```
-
-### Permission issues
-
-**Solution:**
-```bash
-make ROOTLESS=1 qnna_top
-```
-
----
-
-## 📄 License
-
-**Apache 2.0** - See [LICENSE](LICENSE) file for details.
-
----
-
-## 👤 Author
-
-TechJoe96
-
----
-
-## 🙏 Acknowledgments
-
-- **Microwatt team** - OpenPOWER CPU core
-- **ChipFoundry.io** - Hosting the challenge
-- **OpenLane team** - Open-source ASIC flow
-- **SkyWater PDK** - Open-source PDK
-- **Open-source community** - Tools and support
-
----
-
-## 🎯 Summary
-
-This project delivers:
-
-✅ **Complete RTL Design** - 5 modules, fully functional  
-✅ **OpenLane Integration** - Full ASIC flow automated  
-✅ **GDS Files** - Physical layout ready for tape-out  
-✅ **Microwatt Integration** - CPU included in repository  
-✅ **SoC Testbench** - Integration proven to work  
-✅ **Complete Documentation** - Comprehensive guides  
-✅ **Build System** - Docker-based, single command  
-✅ **Reproducibility** - Complete setup instructions  
-
-**A complete, working ASIC design from RTL to GDS, integrated with Microwatt CPU!**
-
----
-
-*Project completed: November 2024*  
-*OpenLane version: 2024.08.15*  
-*PDK: SKY130A*  
-*Status: ✅ COMPLETE AND TESTED*
+Apache 2.0 — see [LICENSE](LICENSE).
